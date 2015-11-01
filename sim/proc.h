@@ -11,6 +11,7 @@
 
 // models a processor's ld/st stream
 class proc_t {
+private:
   int proc;
   response_t response;
 

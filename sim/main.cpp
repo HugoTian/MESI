@@ -80,7 +80,7 @@ void init_system() {
   init_test();
 }
 
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   int cycle;
 
   parse_args(argc, argv);
