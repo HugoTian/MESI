@@ -46,7 +46,7 @@ void proc_t::advance_one_cycle() {
   bool failure = false;
   switch (args.test) {
   case 0:
-    NOTE("2 processor load on same address");
+    NOTE("2 processor store and load on same address");
     if(proc == 1 || proc == 2){
             // first Command
             // store at cycle 1
