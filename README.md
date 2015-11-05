@@ -3,7 +3,7 @@ Implement MESI protocol using c++
 
 
 Test cases
-We have the following test cases:
+We have the following test cases: '\n'
 /***************************************/
 Test 1: Single Processor Read-Write Test
 In this test, a single processor loads from a location “A”.
