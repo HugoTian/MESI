@@ -50,6 +50,7 @@ Test 6:  Expand test 3, sequencial consistence for 32 processors
 
 
 /***************************************/
+
 Test 7: Check directory similar to test 4 
 
 Every processor store to random location, and it is sure that every processor store to different location
