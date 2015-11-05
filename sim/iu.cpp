@@ -81,6 +81,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
                 // if the directory is clean
                 if(!get_dirtybit(lcl)){
                     // add directory
+                    
                     turn_up_directory(lcl,node);
                     // server the data
                     copy_cache_line(pc.data, mem[lcl]);
@@ -109,6 +110,15 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
            }
            // read modified
            else if(pc.permit_tag == MODIFIED){
+               //there is a read miss and I am the home site
+               if ( gen_node(pc.addr) == node ){
+                    NOTE("I am here");
+                    turn_up_directory(lcl, node);
+                    turn_up_dirtybit(lcl);
+                    copy_cache_line(pc.data, mem[lcl]);
+                    cache->reply(pc);
+                    return false;
+               }
                // if thr directory is clean
                if( !get_dirtybit(lcl)){
                     // send out invalidation
@@ -116,6 +126,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
                     // find invalidation
                     for(int i = 0 ; i < 32 ; i++){
                         if(get_directory(lcl,i)){
+                            turn_down_directory(lcl,i);
                             inv = i;
                             pc.busop = INVALIDATE;
                             ++global_accesses;
@@ -136,6 +147,24 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
                     cache->reply(pc);
                     return false;
                }
+                // the directory is dirty
+                else{
+                    //read shared owner
+                    int owner;
+                    for(int i = 0 ; i < 32 ; i++){
+                        if(get_directory(lcl,i)){
+                            owner = i;
+                            break;
+                        }
+                    }
+                    ++global_accesses;
+                    pc.permit_tag = SHARED;
+                    net_cmd_t net_cmd;
+                    net_cmd.src = node;
+                    net_cmd.dest = owner;
+                    net_cmd.proc_cmd = pc;
+                    return(net->to_net(node, REQUEST, net_cmd));
+                }
 
            }
     }
@@ -218,6 +247,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
                           // find invalidation
                           for(int i = 0 ; i < 32 ; i++){
                               if(get_directory(lcl,i)){
+                                 turn_down_directory(lcl,i);
                                  inv = i;
                                  pc.busop = INVALIDATE;
                                  ++global_accesses;
