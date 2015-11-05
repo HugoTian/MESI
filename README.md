@@ -16,8 +16,7 @@ This test is just to ensure the basic cache states.
 Test 2: Sequencial consistency test of 2 processor
 initially A = B = 0
 processor 1 store 200 to A, then store 1 B
-processor 2  run 
-    while(B == 0) ; load A
+processor 2 while(B == 0) ; load A
 Error cases : A not equals to 200 in processor 2
 
 
