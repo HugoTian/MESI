@@ -35,7 +35,6 @@ void proc_t::bind(cache_t *c) {
 }
 
 
-// ***** FYTD ***** 
 // perform load 
 // return 1, hit for first time
 // return 2, miss for first time
@@ -49,9 +48,9 @@ int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retrie
           }
             
           // is there is a miss , so keep retry to complete this load
-          while(!response.retry_p){
-                response = cache->load(addr, tag, &data, response.retry_p);
-                if(response.retry_p = false)
+          while(response.retry_p){
+                response = cache->load(addr, tag, &data, false);
+                if(response.retry_p == false)
                     return 2; 
           }
 
@@ -72,9 +71,9 @@ int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retrie
           }
             
           // is there is a miss , so keep retry to complete this load
-          while(!response.retry_p){
-                response = cache->store(addr, tag, data, response.retry_p);
-                if(response.retry_p = false)
+          while(response.retry_p){
+                response = cache->store(addr, tag, data, false);
+                if(response.retry_p ==false)
                     return 2; 
           }
 

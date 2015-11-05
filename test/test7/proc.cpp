@@ -49,9 +49,9 @@ int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retrie
           }
             
           // is there is a miss , so keep retry to complete this load
-          while(!response.retry_p){
-                response = cache->load(addr, tag, &data, response.retry_p);
-                if(response.retry_p = false)
+          while(response.retry_p){
+                response = cache->load(addr, tag, &data, false);
+                if(response.retry_p == false)
                     return 2; 
           }
 
@@ -72,15 +72,14 @@ int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retrie
           }
             
           // is there is a miss , so keep retry to complete this load
-          while(!response.retry_p){
-                response = cache->store(addr, tag, data, response.retry_p);
-                if(response.retry_p = false)
+          while(response.retry_p){
+                response = cache->store(addr, tag, data, false);
+                if(response.retry_p ==false)
                     return 2; 
           }
 
           return 0;
 }
-
 // advance one cycle
 
 void proc_t::advance_one_cycle() {
