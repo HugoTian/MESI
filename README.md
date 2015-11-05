@@ -2,12 +2,15 @@
 Implement MESI protocol using c++
 
 
-Implement MESI protocol using c++
 Test cases
 We have the following test cases:
 /***************************************/
 Test 1: Single Processor Read-Write Test
-In this test, a single processor loads from a location “A”. The cache miss initiates a “Read” and the cache state for this particular line changes from Invalid to Shared. The Processor now issues a store to the same location. This results in a cache hit and cache state now changes from shared to modified. This test is just to ensure the basic cache states. 
+In this test, a single processor loads from a location “A”.
+The cache miss initiates a “Read” and the cache state for this particular line changes
+from Invalid to Shared. The Processor now issues a store to the same location. 
+This results in a cache hit and cache state now changes from shared to modified. 
+This test is just to ensure the basic cache states. 
 
 /***************************************/
 Test 2: Sequencial consistency test of 2 processor
