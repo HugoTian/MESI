@@ -12,6 +12,8 @@
 #include "my_fifo.h"
 #include "cache.h"
 #include "network.h"
+#include <iostream>
+
 
 class iu_t {
   int node;
@@ -20,6 +22,10 @@ class iu_t {
   int global_accesses;
 
   data_t mem[MEM_SIZE];
+
+  int directory [768];
+  int others[768];
+
 
   cache_t *cache;
   network_t *net;
@@ -49,6 +55,38 @@ class iu_t {
   
   // network side
   bool from_net(net_cmd_t nc);
+
+  // get directoru
+  int get_directory(int cache_line, int proc){
+      return (directory[cache_line] >> proc ) & 1;
+  }
+  // turn up a directory
+  void turn_up_directory(int cache_line, int proc){
+        directory[cache_line] = directory[cache_line] | ( 1<< proc);
+  }
   
+  // turn down a directory
+  void turn_down_directory(int cache_line, int proc){
+        directory[cache_line] = directory[cache_line] & (~ ( 1 << proc));
+
+  }
+
+  // get busy bit
+  int get_busy(int cache_line){
+        return others[cache_line] >> 2 & 1 ;
+  }
+
+  // turn on busy bit
+
+
+
+  // turn off busy bit
+
+
+
+  // get dirty bit
+
+
+  // turn on 
 };
 #endif
