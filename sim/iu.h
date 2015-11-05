@@ -72,21 +72,44 @@ class iu_t {
   }
 
   // get busy bit
-  int get_busy(int cache_line){
-        return others[cache_line] >> 2 & 1 ;
+  int get_busybit(int cache_line){
+        return others[cache_line] >> 1 & 1 ;
   }
 
   // turn on busy bit
 
+  void turn_up_busybit(int cache_line){
+       others[cache_line] |= (1<< 1);
+  }
 
 
   // turn off busy bit
 
+  void turn_down_busybit(int cache_line){
+       others[cache_line] &=  ( ~(1<< 1) );
+  }
+
 
 
   // get dirty bit
+  int get_dirtybit(int cache_line){
+        return others[cache_line]  & 1 ;
+  }
 
 
-  // turn on 
+
+  // turn on dirty bit
+
+
+  void turn_up_dirtybit(int cache_line){
+       others[cache_line] |=  1 ;
+  }
+
+  // turn down dirty bit
+  void turn_down_dirtybit(int cache_line){
+       others[cache_line] &= ( ~1 );
+  }
+
+
 };
 #endif
