@@ -85,6 +85,7 @@ int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retrie
 
 void proc_t::advance_one_cycle() {
   int data;
+  int A =  100 % test_args.addr_range;
   switch (args.test) {
   case 0:
     NOTE("single processor test");
@@ -92,7 +93,7 @@ void proc_t::advance_one_cycle() {
             // first Command
             // load at cycle 1
             
-            addr = 100 % test_args.addr_range;
+            addr = A;
             NOTE("Issue first load");
             int result = perform_load(addr, 0 &data, response.retry_p);    
             if(result == 1) {

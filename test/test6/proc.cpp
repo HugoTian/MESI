@@ -96,45 +96,38 @@ void proc_t::advance_one_cycle() {
           NOTE("proc store A");
           int result = perform_store(addr, 0 , 50 , response.retry_p);
          
-          addr = B;
-          NOTE("proc store A");
-          int result = perform_store(addr, 0 , 50 , response.retry_p);
          
 
       }else{
 
          //for processor i , i != 1
-         //store (50 + i) to (A + i)
-         // x = load  (B+ i -1)
-         // while( x ! = 80 + (i-1) )
-         // x = load B + (i-1)
-         // y = load (A + i-1)
-         // store 80 + i to B+i
-         // Error y ! = 50 + i - 1
+         // x = load  (A+ i -1)
+         // if x == 50 + (i-1)
+         // store 50 + i to A+i
+         // load A + i -2 see the result
 
-         
-         NOTE("proc store A + i ");
-         addr = A + proc;
-         int result = perform_store(addr, 0 , 50+proc , response.retry_p);
-        
-         NOTE("proc load B + i -1 ");
-         addr = B + proc - 1;
-         int result = perform_load(addr, 0 , &data , response.retried_p );
-         while( data != 80 + proc -1){
-              int result = perform_load(addr, 0 , &data , response.retried_p );
-         }
-
+      
          NOTE("proc load A + i -1 ");
          addr = A + proc - 1;
          int result = perform_load(addr, 0 , &data , response.retried_p );
+         if ( data == 50+ proc -1){
+              
+             NOTE("proc store 50 + i to  A + i  ");
+             addr = A + proc;
+             int result = perform_store(addr, 0 , 50+proc , response.retry_p);
 
-         NOTE("proc store 80 + i to  B + i  ");
-         addr = B + proc;
-         int result = perform_store(addr, 0 , 80+proc , response.retry_p);
-      
-         if(data ! = 50 + proc -1 ){
-             ERROR("fail  this test ");
+             NOTE("proc load A ");
+             addr = A ; 
+             int result = perform_load(addr, 0 , &data , response.retried_p );
+
+             if(data ! = 50 ){
+                ERROR("fail  this test ");
+             }
          }
+
+         
+      
+       
 
       
     

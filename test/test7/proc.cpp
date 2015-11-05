@@ -36,26 +36,84 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
+// perform load 
+// return 1, hit for first time
+// return 2, miss for first time
+// return until load finish
+int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
+          // perform load
+          response = cache->load(addr, tag , &data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->load(addr, tag, &data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
 
-// this is just a simple random test.  I'm not giving
-// you any more test cases than this.  You will be tested on the
-// correctness and performance of your solution.
+
+          return 0;
+}
+
+// perform store
+// return 1, hit for first time
+// return 2, miss for first time
+// return until store finish
+int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
+           // perform store
+          response = cache->store(addr, tag, data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->store(addr, tag, data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
+
+          return 0;
+}
+
+// advance one cycle
 
 void proc_t::advance_one_cycle() {
   int data;
 
   switch (args.test) {
   case 0:
-       // p1 read A (gets 0)
-       // p1 store to A with x+2 (so now A <= 2)
+         addr = random() % test_args.addr_range;
 
-       // after that, p2 read loc A (should get 2)
-      
-       // p2 writes back x+1 (now A <= 3) 
+         NOTE("proc store A");
+         int result = perform_store(addr, 0 , 50 , response.retry_p);
+         
+       
+         NOTE("proc load B");
+         int result = perform_load(addr, 0 , &data , response.retry_p);
 
-       // p1 issues a write to loc A (should be A=A+2, A becomes 5)
+         if(data != 50){
+            ERROR("fail this test cases");
+         }
 
-       // p2 issues a write now to loc A ( A<= A+1, A becomes 6)
+
+         addr = random() % test_args.addr_range;
+
+         NOTE("proc store A");
+         int result = perform_store(addr, 0 , 80 , response.retry_p);
+         
+       
+         NOTE("proc load B");
+         int result = perform_load(addr, 0 , &data , response.retry_p);
+
+         if(data != 80){
+            ERROR("fail this test cases");
+         }
 
   default:
     ERROR("don't know this test case");
