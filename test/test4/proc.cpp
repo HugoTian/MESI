@@ -93,13 +93,13 @@ void proc_t::advance_one_cycle() {
       // every one load A
        addr = A;
        NOTE("proc store A");
-       int result = perform_store(addr, 0 , 50 , response.retry_p);
+       int result = perform_store(addr, 0 , 50+proc, response.retry_p);
          
        
        NOTE("proc load B");
        int result = perform_load(addr, 0 , &data , response.retry_p);
 
-       if(data != 50){
+       if(data < 50 || data > 82){
           ERROR("fail this test cases");
        }
       

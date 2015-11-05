@@ -87,7 +87,7 @@ void proc_t::advance_one_cycle() {
 
   switch (args.test) {
   case 0:
-         addr = random() % test_args.addr_range;
+         addr = random() % 32 + 32 * proc;
 
          NOTE("proc store A");
          int result = perform_store(addr, 0 , 50 , response.retry_p);
@@ -99,9 +99,6 @@ void proc_t::advance_one_cycle() {
          if(data != 50){
             ERROR("fail this test cases");
          }
-
-
-         addr = random() % test_args.addr_range;
 
          NOTE("proc store A");
          int result = perform_store(addr, 0 , 80 , response.retry_p);
