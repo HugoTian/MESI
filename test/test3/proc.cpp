@@ -36,28 +36,96 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
+// perform load 
+// return 1, hit for first time
+// return 2, miss for first time
+// return until load finish
+int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
+          // perform load
+          response = cache->load(addr, tag , &data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->load(addr, tag, &data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
 
-// this is just a simple random test.  I'm not giving
-// you any more test cases than this.  You will be tested on the
-// correctness and performance of your solution.
+
+          return 0;
+}
+
+// perform store
+// return 1, hit for first time
+// return 2, miss for first time
+// return until store finish
+int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
+           // perform store
+          response = cache->store(addr, tag, data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->store(addr, tag, data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
+
+          return 0;
+}
+
+
+// Advance one cycle
 
 void proc_t::advance_one_cycle() {
   int data;
-  bool[3] completeCommand = {false, false, false};
-  bool failure = false;
+  int A = 100 % test_args.addr_range;
+  int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
     NOTE("single processor test");
     if(proc == 1){
-          // issue a store to loc A
+         
+          addr = A;
+          NOTE("Processor 1 store A");
+          int result = perform_store(addr, 0 , 1 , response.retry_p);
+          
     }else if (proc == 2){
-          // read back the stored value after the processor 1 succeeds store
+          addr = A
+          NOTE("Processor 2  load A");
+          int result = perform_load(addr, 0 , &data , response.retry_p);
+
+          if (data == 1 ){
+               addr = B;
+               NOTE("Processor 2  store B");
+               int result = perform_store(addr, 0 , 1 , response.retry_p);
+          }
     }else if (proc == 3){
           // store to a new location B
-    }else if (proc == 4){
-          // When the processor is still reading back the data the processor 4 issues a read
-          // Will get the new value because the read from proc 4 will be queued by the network and by the time processing starts, 
-          // the directory and homesit will ensure that it gets the correct value
+          addr = B ;
+          NOTE("Processor 3 load B");
+          int result = perform_load(addr, 0 , &data , response.retry_p);
+
+          if(data == 1){
+                addr = A ;
+                NOTE("Processor 3 load A");
+                int result = perform_load(addr, 0 , &data , response.retry_p);
+
+                if(data == 1){
+                  NOTE("Pass this case");
+                }else{
+                  ERROR("Fail this case");
+                }
+          }
+
+
     }
     break;
 

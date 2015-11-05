@@ -36,63 +36,92 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
+// perform load 
+// return 1, hit for first time
+// return 2, miss for first time
+// return until load finish
+int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
+          // perform load
+          response = cache->load(addr, tag , &data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->load(addr, tag, &data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
 
-// this is just a simple random test.  I'm not giving
-// you any more test cases than this.  You will be tested on the
-// correctness and performance of your solution.
+
+          return 0;
+}
+
+// perform store
+// return 1, hit for first time
+// return 2, miss for first time
+// return until store finish
+int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
+           // perform store
+          response = cache->store(addr, tag, data, response.retry_p);
+          
+          if( !response.retry_p){
+              return 1;
+          }
+            
+          // is there is a miss , so keep retry to complete this load
+          while(!response.retry_p){
+                response = cache->store(addr, tag, data, response.retry_p);
+                if(response.retry_p = false)
+                    return 2; 
+          }
+
+          return 0;
+}
+
+
+// advance one cycle
 void proc_t::advance_one_cycle() {
   int data;
-  bool[3] completeCommand = {false, false, false};
-  bool failure = false;
   switch (args.test) {
   case 0:
     NOTE("2 processor store and load on same address");
-    if(proc == 1 || proc == 2){
+    if(proc == 1 ){
             // first Command
             // store at cycle 1
-            if (cur_cycle == 1) {
-                addr = 100 % test_args.addr_range;
-                NOTE("Issue first store");
-                response = cache->cache->store(addr, 0, 50, response.retry_p);
-                if(response.hit){
-                   ERROR("should miss in this load");
-                   failure = true;
-                }
+            addr = 100 % test_args.addr_range;
+            NOTE("p1 store A");
+            int result = perform_store(addr, 0 , 50 , response.retry_p);
+      
+          
+            addr = 200 % test_args.addr_range;
+            NOTE("p1 store B");
+            int result = perform_store(addr, 0 , 1 , response.retry_p);
+            
+    }else if(proc == 2){
+            
+
+            addr = 200 % test_args.addr_range;
+            NOTE("p2 load B");
+            int result = perform_load(addr, 0, &data, response.retry_p); 
+
+            NOTE("p2 load B, until B is not 0");
+            while(data == 0){
+                int result = perform_load(addr, 0, &data, response.retry_p); 
             }
-            
-            // there should be a miss , so keep retry to complete this load
-            while(!response.retry_p && !completeCommand[0]){
-                 response = cache->cache->store(addr, 0, 50, response.retry_p);
-                 if(response.retry_p = false)
-                     completeCommand[0] = true;
+
+            addr = 100 % test_args.addr_range;
+            NOTE("p2 load A ");
+            int result = perform_load(addr, 0 , &data, response.retry_p); 
+
+            if(data != 50){
+                ERROR("fail this case");
+            }else{
+                NOTE("pass this case");
             }
-            
-            
-        
-            // Second Command 
-            // load to pre-stored value
-            // should hit
-            if (!response.retry_p && completeCommand[0]){
-                NOTE("Issue second load");
-                response = cache->load(addr, 0, &data, response.retry_p);
-                if (!response.hit){
-                   ERROR("should hit on this load");
-                   failure = true;           
-                }
-                if(data != 50){
-                   ERROR("load wrong data");
-                   failure = true; 
-                }
-            }
-            
-        // see whether pass this test case
-        if (cur_cycle = args.num_cycles-1){
-              if(failure){
-                    ERROR("failed this test case");
-              }else{
-                    ERROR("succeed this test case");
-              }
-        }
+
     }
     break;
 

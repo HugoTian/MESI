@@ -46,11 +46,16 @@ void proc_t::advance_one_cycle() {
 
   switch (args.test) {
   case 0:
-       // p1 store to A with x
+       // p1 read A (gets 0)
+       // p1 store to A with x+2 (so now A <= 2)
 
-       // after that, p2 store to A with 7
+       // after that, p2 read loc A (should get 2)
+      
+       // p2 writes back x+1 (now A <= 3) 
 
-       // 
+       // p1 issues a write to loc A (should be A=A+2, A becomes 5)
+
+       // p2 issues a write now to loc A ( A<= A+1, A becomes 6)
 
   default:
     ERROR("don't know this test case");

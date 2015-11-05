@@ -81,9 +81,7 @@ int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retrie
           return 0;
 }
 
-// this is just a simple random test.  I'm not giving
-// you any more test cases than this.  You will be tested on the
-// correctness and performance of your solution.
+// advance one cycle
 
 void proc_t::advance_one_cycle() {
   int data;
@@ -134,7 +132,6 @@ void proc_t::advance_one_cycle() {
             }
             
             // see whether pass this test case
-        
             ERROR("succeed this test case");
         
     }
