@@ -19,6 +19,7 @@
 #include "proc.h"
 #include "test.h"
 
+bool Command[3] = {false,false,false};
 
 proc_t::proc_t(int __p) {
   proc = __p;
@@ -36,104 +37,70 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
-// perform load 
-// return 1, hit for first time
-// return 2, miss for first time
-// return until load finish
-int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
-          // perform load
-          response = cache->load(addr, tag , &data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->load(addr, tag, &data, false);
-                if(response.retry_p == false)
-                    return 2; 
-          }
-
-
-          return 0;
-}
-
-// perform store
-// return 1, hit for first time
-// return 2, miss for first time
-// return until store finish
-int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
-           // perform store
-          response = cache->store(addr, tag, data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->store(addr, tag, data, false);
-                if(response.retry_p ==false)
-                    return 2; 
-          }
-
-          return 0;
-}
 
 // advance one cycle
 
 void proc_t::advance_one_cycle() {
   int data;
+  
   int A =  100 % test_args.addr_range;
   switch (args.test) {
   case 0:
-    NOTE("single processor test");
-    if(proc == 1){
+   
+    if(proc == 0){
             // first Command
-            // load at cycle 1
-            
+            // first load
             addr = A;
-            NOTE("Issue first load");
-            int result = perform_load(addr, 0 &data, response.retry_p);    
-            if(result == 1) {
-                 ERROR("should miss for this load");
-                 ERROR("failed this test case");
-                 return;
+            if(!Command[0]){
+                NOTE("single processor test");
+                response = cache->load(addr, 0 , &data, false);
+          
+                if(response.retry_p == false){
+                      Command[0] = true;
+                      NOTE("first load finish");
+                }
             }
-
+            
             // second Command
             // store to same address
             // should hit
+            else if(Command[0] && !Command[1]){
+            
+                response = cache->store(addr, 0, 50, false);
+                 if(response.retry_p == false){
+                    Command[1] = true;
+                    NOTE("store finish");
+                 }
           
-            NOTE("Issue first store");
-            int result = perform_store(addr, 0 , 50 , response.retry_p);
-            if(result == 1){
-                 ERROR("should miss for this store");
-                 ERROR("failed this test case");
-                 return;
             }
-        
+               
             // Third Command 
             // load to pre-stored value
             // should hit
             
-            NOTE("Issue second load");
-            int result = perform_load(addr, 0, &data, response.retry_p);
-            if(result != 1){    
-                 ERROR("should hit on this load");
-                 ERROR("failed this test case");
-                 return;
+            else if(Command[1] && !Command[2]){
+                response = cache->load(addr, 0 , &data ,false);
+
+                if(response.retry_p == false){
+                    Command[2] = true;
+                    NOTE("Second load finish");
+                }
+
+                if(response.retry_p){    
+                  ERROR("should hit on this load");
+                  ERROR("failed this test case");
+                  return;
                               
+                }
+                else if(data != 50){
+                  ERROR("load wrong data");
+                  ERROR("failed this test case");
+                  return;
+                }else{
+                  // see whether pass this test case
+                   ERROR("succeed this test case");
+                }
             }
-            if(data != 50){
-                 ERROR("load wrong data");
-                 ERROR("failed this test case");
-                 return;
-            }
-            
-            // see whether pass this test case
-            ERROR("succeed this test case");
         
     }
     break;
