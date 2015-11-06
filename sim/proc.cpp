@@ -66,7 +66,7 @@ void proc_t::advance_one_cycle() {
             // should hit
             else if(Command[0] && !Command[1]){
             
-                response = cache->store(addr, 0, data, false);
+                response = cache->store(addr, 0, 50, false);
                  if(response.retry_p == false){
                     Command[1] = true;
                     NOTE("store finish");
