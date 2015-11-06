@@ -19,7 +19,6 @@
 #include "proc.h"
 #include "test.h"
 
-bool Command[3] = {false,false,false};
 
 proc_t::proc_t(int __p) {
   proc = __p;
@@ -37,71 +36,87 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
+bool command1[2] = {false,false};
+bool command2[3] = {false, false, false};
 
 // advance one cycle
-
 void proc_t::advance_one_cycle() {
   int data;
-  
-  int A =  100 % test_args.addr_range;
+  int A = 100 % test_args.addr_range;
+  int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
-   
+    NOTE("2 processor store and load on same address");
     if(proc == 0){
             // first Command
-            // first load
-            addr = A;
-            if(!Command[0]){
-                NOTE("single processor test");
-                response = cache->load(addr, 0 , &data, false);
+            // store at cycle 1
+    
+            if(!command1[0]){
+                addr = A;
+                NOTE("p1 store A");
+                response = cache->store(addr, 0, 50, false);
           
                 if(response.retry_p == false){
-                      Command[0] = true;
-                      NOTE("first load finish");
+                      command1[0] = true;
+                      NOTE("p1 first store finish");
                 }
             }
             
             // second Command
             // store to same address
             // should hit
-            else if(Command[0] && !Command[1]){
-            
-                response = cache->store(addr, 0, 50, false);
+            else if(command1[0] && !command1[1]){
+                addr = B;
+                NOTE("p1 store B");
+                response = cache->store(addr, 0, 1, false);
                  if(response.retry_p == false){
-                    Command[1] = true;
-                    NOTE("store finish");
+                    command1[1] = true;
+                    NOTE("p1 second store finish");
                  }
           
             }
-               
-            // Third Command 
-            // load to pre-stored value
-            // should hit
+    }else if(proc == 1){
             
-            else if(Command[1] && !Command[2]){
-                response = cache->load(addr, 0 , &data ,false);
 
+            if(!command2[0]){
+                addr = B;
+                NOTE("p2 load B");
+                response = cache->load(addr, 0, &data, false);
+          
                 if(response.retry_p == false){
-                    Command[2] = true;
-                    NOTE("Second load finish");
-                }
-
-                if(response.retry_p){    
-                  ERROR("should hit on this load");
-                  ERROR("failed this test case");
-                  return;
-                              
-                }
-                else if(data != 50){
-                  ERROR("load wrong data");
-                  ERROR("failed this test case");
-                  return;
-                }else{
-                  // see whether pass this test case
-                   ERROR("succeed this test case");
+                      command2[0] = true;
+                      NOTE("p2 first load finish");
                 }
             }
-        
+            else if( command2[0] && !command2[1]){
+                NOTE("p2 load B, until B is not 0");
+                if(data != 0){
+                     addr = B;
+                     NOTE("p2 load B");
+                     response = cache->load(addr, 0, &data, false);
+                }else{
+                   command2[1] = true;
+                   NOTE("p2 pass while loop");
+                }
+            }
+            else if(command2[1] && !command2[2]){
+                addr = A;
+                NOTE("p2 load A ");
+               
+                response = cache->load(addr, 0, &data, false);
+                if(response.retry_p == false){
+                      command2[2] = true;
+                      NOTE("p2  finish final load");
+                }
+            }
+            else{
+                if(data != 50){
+                    ERROR("fail this case");
+                }else{
+                    NOTE("pass this case");
+                }
+            }
+
     }
     break;
 
@@ -109,6 +124,7 @@ void proc_t::advance_one_cycle() {
     ERROR("don't know this test case");
   }
 }
+
 
 
 
