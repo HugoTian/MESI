@@ -35,108 +35,108 @@ void proc_t::bind(cache_t *c) {
 }
 
 
-// perform load 
-// return 1, hit for first time
-// return 2, miss for first time
-// return until load finish
-int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
-          // perform load
-          response = cache->load(addr, tag , &data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->load(addr, tag, &data, false);
-                if(response.retry_p == false)
-                    return 2; 
-          }
-
-
-          return 0;
-}
-
-// perform store
-// return 1, hit for first time
-// return 2, miss for first time
-// return until store finish
-int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
-           // perform store
-          response = cache->store(addr, tag, data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->store(addr, tag, data, false);
-                if(response.retry_p ==false)
-                    return 2; 
-          }
-
-          return 0;
-}
+// ***** FYTD ***** 
+bool command1[2] = {false,false};
+bool command2[4] = {false, false, false,false};
+bool beginning = false;
 
 // advance one cycle
-
 void proc_t::advance_one_cycle() {
   int data;
   int A = 100 % test_args.addr_range;
   int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
-      if(proc == 0){
-          // if proc == 0 then store A 50
-          // store B 80
-          addr = A;
-          NOTE("proc store A");
-          int result = perform_store(addr, 0 , 50 , response.retry_p);
-         
-          addr = B;
-          NOTE("proc store A");
-          int result = perform_store(addr, 0 , 50 , response.retry_p);
-         
-
-      }else{
-
-         //for processor i , i != 1
-         //store (50 + i) to (A + i)
-         // x = load  (B+ i -1)
-         // while( x ! = 80 + (i-1) )
-         // x = load B + (i-1)
-         // y = load (A + i-1)
-         // store 80 + i to B+i
-         // Error y ! = 50 + i - 1
-
-         
-         NOTE("proc store A + i ");
-         addr = A + proc;
-         int result = perform_store(addr, 0 , 50+proc , response.retry_p);
-        
-         NOTE("proc load B + i -1 ");
-         addr = B + proc - 1;
-         int result = perform_load(addr, 0 , &data , response.retried_p );
-         while( data != 80 + proc -1){
-              int result = perform_load(addr, 0 , &data , response.retried_p );
-         }
-
-         NOTE("proc load A + i -1 ");
-         addr = A + proc - 1;
-         int result = perform_load(addr, 0 , &data , response.retried_p );
-
-         NOTE("proc store 80 + i to  B + i  ");
-         addr = B + proc;
-         int result = perform_store(addr, 0 , 80+proc , response.retry_p);
-      
-         if(data ! = 50 + proc -1 ){
-             ERROR("fail  this test ");
-         }
-
-      
+    NOTE("2 processor store and load on same address");
+    if(proc == 0){
+            // first Command
+            // store at cycle 1
     
+            if(!command1[0]){
+                addr = A;
+                NOTE("p1 store A");
+                response = cache->store(addr, 0, 50, false);
+          
+                if(response.retry_p == false){
+                      command1[0] = true;
+                      NOTE("p1 first store finish");
+                }
+            }
+            
+            // second Command
+            // store to same address
+            // should hit
+            else if(command1[0] && !command1[1]){
+                addr = B;
+                NOTE("p1 store B");
+                response = cache->store(addr, 0, 80, false);
+                 if(response.retry_p == false){
+                    command1[1] = true;
+                    NOTE("p1 second store finish");
+                 }
+          
+            }
+    }else {
+            
+            if(!beginning){
+                NOTE("proc store A + i ");
+                addr = A + proc;
+                response = cache->store(addr, 0, 50+proc, false);
+                 if(response.retry_p == false){
+                    beginning = true;
+                    NOTE("p store finish");
+                 }
+            }
+
+            else if(!command2[0]){
+                NOTE("proc load B + i -1 ");
+                addr = B + proc - 1;
+                response = cache->load(addr, 0, &data, false);
+          
+                if(response.retry_p == false){
+                      command2[0] = true;
+                      NOTE("load finish");
+                }
+            }
+            else if( command2[0] && !command2[1]){
+                NOTE("proc load B, until B is 80 + proc - 1");
+                if(data !=  80 + proc -1){
+                     addr = B + proc - 1;
+                     NOTE("proc load B");
+                     response = cache->load(addr, 0, &data, false);
+                }else{
+                   command2[1] = true;
+                   NOTE("proc pass while loop");
+                }
+            }
+            else if(command2[1] && !command2[2]){
+                NOTE("proc load A + i -1 ");
+                addr = A + proc - 1;
+               
+                response = cache->load(addr, 0, &data, false);
+                if(response.retry_p == false){
+                      command2[2] = true;
+                      NOTE("proc finish final load");
+                }
+            }else if(command2[2] && !command2[3]){
+                  NOTE("proc store 80 + i to  B + i  ");
+                  addr = B + proc;
+                    response = cache->store(addr, 0, 80+proc, false);
+                    if(response.retry_p == false){
+                      command2[3] = true;
+                      NOTE("p store finish");
+                    }
+
+            }else{
+                if(data != 50 + proc -1 ){
+                   ERROR("fail  this test ");
+                } else{
+                    NOTE("pass this case");
+                }
+            }
+
+    }
+    break;
 
   default:
     ERROR("don't know this test case");

@@ -36,80 +36,56 @@ void proc_t::bind(cache_t *c) {
 
 
 // ***** FYTD ***** 
-// perform load 
-// return 1, hit for first time
-// return 2, miss for first time
-// return until load finish
-int proc_t:: perform_load (address_t addr, bus_tag_t tag, int *data, bool retried_p) {
-          // perform load
-          response = cache->load(addr, tag , &data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->load(addr, tag, &data, false);
-                if(response.retry_p == false)
-                    return 2; 
-          }
+bool command1[2] = {false,false};
 
-
-          return 0;
-}
-
-// perform store
-// return 1, hit for first time
-// return 2, miss for first time
-// return until store finish
-int  proc_t:: perform_store(address_t addr, bus_tag_t tag, int data, bool retried_p){
-           // perform store
-          response = cache->store(addr, tag, data, response.retry_p);
-          
-          if( !response.retry_p){
-              return 1;
-          }
-            
-          // is there is a miss , so keep retry to complete this load
-          while(response.retry_p){
-                response = cache->store(addr, tag, data, false);
-                if(response.retry_p ==false)
-                    return 2; 
-          }
-
-          return 0;
-}
 // advance one cycle
-
 void proc_t::advance_one_cycle() {
   int data;
-
+  int A = 100 % test_args.addr_range;
+  int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
-         addr = random() % 32 + 32 * proc;
+    NOTE("2 processor store and load on same address");
 
-         NOTE("proc store A");
-         int result = perform_store(addr, 0 , 50 , response.retry_p);
-         
-       
-         NOTE("proc load B");
-         int result = perform_load(addr, 0 , &data , response.retry_p);
+            // first Command
+            // store at cycle 1
+    
+            if(!command1[0]){
+                addr = random() % 32 + 32 * proc;
+                NOTE("proc store A");
+                response = cache->store(addr, 0, 50, false);
+          
+                if(response.retry_p == false){
+                      command1[0] = true;
+                      NOTE("proc first store finish");
+                }
+            }
+            
+            // second Command
+            // load to same address
+            // should hit
+            else if(command1[0] && !command1[1]){
+                addr = random() % 32 + 32 * proc;
+                NOTE("proc load A");
+                response = cache->load(addr, 0, &data, false);
+                 if(response.retry_p == false){
+                    command1[1] = true;
+                    NOTE("proc load finish");
+                 
 
-         if(data != 50){
-            ERROR("fail this test cases");
-         }
+                    if(data != 50){
+                        ERROR("fail this case");
+                    }else{
+                        NOTE("pass this case");
+                    }
+                }
+          
+            }
+   
+            
 
-         NOTE("proc store A");
-         int result = perform_store(addr, 0 , 80 , response.retry_p);
-         
-       
-         NOTE("proc load B");
-         int result = perform_load(addr, 0 , &data , response.retry_p);
-
-         if(data != 80){
-            ERROR("fail this test cases");
-         }
+    
+    break;
 
   default:
     ERROR("don't know this test case");

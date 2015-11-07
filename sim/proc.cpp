@@ -37,7 +37,6 @@ void proc_t::bind(cache_t *c) {
 
 // ***** FYTD ***** 
 bool command1[2] = {false,false};
-bool command2[3] = {false, false, false};
 
 // advance one cycle
 void proc_t::advance_one_cycle() {
@@ -47,77 +46,45 @@ void proc_t::advance_one_cycle() {
   switch (args.test) {
   case 0:
     NOTE("2 processor store and load on same address");
-    if(proc == 0){
+
             // first Command
             // store at cycle 1
     
             if(!command1[0]){
-                addr = A;
-                NOTE("p1 store A");
+                addr = random() % 32 + 32 * proc;
+                NOTE("proc store A");
                 response = cache->store(addr, 0, 50, false);
           
                 if(response.retry_p == false){
                       command1[0] = true;
-                      NOTE("p1 first store finish");
+                      NOTE("proc first store finish");
                 }
             }
             
             // second Command
-            // store to same address
+            // load to same address
             // should hit
             else if(command1[0] && !command1[1]){
-                addr = B;
-                NOTE("p1 store B");
-                response = cache->store(addr, 0, 1, false);
+                addr = random() % 32 + 32 * proc;
+                NOTE("proc load A");
+                response = cache->load(addr, 0, &data, false);
                  if(response.retry_p == false){
                     command1[1] = true;
-                    NOTE("p1 second store finish");
-                 }
+                    NOTE("proc load finish");
+                 
+
+                    if(data != 50){
+                        ERROR("fail this case");
+                    }else{
+                        NOTE("pass this case");
+                    }
+                }
           
             }
-    }else if(proc == 1){
+   
             
 
-            if(!command2[0]){
-                addr = B;
-                NOTE("p2 load B");
-                response = cache->load(addr, 0, &data, false);
-          
-                if(response.retry_p == false){
-                      command2[0] = true;
-                      NOTE("p2 first load finish");
-                }
-            }
-            else if( command2[0] && !command2[1]){
-                NOTE("p2 load B, until B is not 0");
-                if(data != 0){
-                     addr = B;
-                     NOTE("p2 load B");
-                     response = cache->load(addr, 0, &data, false);
-                }else{
-                   command2[1] = true;
-                   NOTE("p2 pass while loop");
-                }
-            }
-            else if(command2[1] && !command2[2]){
-                addr = A;
-                NOTE("p2 load A ");
-               
-                response = cache->load(addr, 0, &data, false);
-                if(response.retry_p == false){
-                      command2[2] = true;
-                      NOTE("p2  finish final load");
-                }
-            }
-            else{
-                if(data != 50){
-                    ERROR("fail this case");
-                }else{
-                    NOTE("pass this case");
-                }
-            }
-
-    }
+    
     break;
 
   default:
