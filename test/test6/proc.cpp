@@ -76,7 +76,7 @@ void proc_t::advance_one_cycle() {
                 }
             }
             else if( command2[0] && !command2[1]){
-                NOTE("proc load B, until B is 80 + proc - 1");
+                NOTE("proc load B");
                 if(data ==  50 + proc -1){
                      if(!command2[2]){
                           NOTE("proc store 50 + i to  A + i  ");
@@ -89,7 +89,7 @@ void proc_t::advance_one_cycle() {
                              NOTE("store finish");
                          }
 
-                    }else if (command2[3]){
+                    }else if (!command2[3] && proc == 31){
 
                         NOTE("proc load A ");
                         addr = A ;
@@ -110,7 +110,7 @@ void proc_t::advance_one_cycle() {
 
                 }else{
                    command2[1] = true;
-                   NOTE("proc pass while loop");
+                   
                 }
             }
            

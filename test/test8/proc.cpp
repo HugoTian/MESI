@@ -64,6 +64,7 @@ void proc_t::advance_one_cycle() {
             // second Command
             // load to same address
             // should hit
+            else{
             if(proc == 0){
                 if(command1[0] && !command1[1]){
                     addr = A;
@@ -105,6 +106,7 @@ void proc_t::advance_one_cycle() {
                      }
                 }
 
+            }
             }
    
             

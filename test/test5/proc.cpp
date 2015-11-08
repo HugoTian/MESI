@@ -116,6 +116,11 @@ void proc_t::advance_one_cycle() {
                 if(response.retry_p == false){
                       command2[2] = true;
                       NOTE("proc finish final load");
+                       if(data != 50 + proc -1 ){
+                          ERROR("fail  this test ");
+                       } else{
+                          NOTE("pass this case");
+                       }
                 }
             }else if(command2[2] && !command2[3]){
                   NOTE("proc store 80 + i to  B + i  ");
@@ -127,11 +132,7 @@ void proc_t::advance_one_cycle() {
                     }
 
             }else{
-                if(data != 50 + proc -1 ){
-                   ERROR("fail  this test ");
-                } else{
-                    NOTE("pass this case");
-                }
+               
             }
 
     }

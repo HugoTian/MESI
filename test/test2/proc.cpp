@@ -48,7 +48,7 @@ void proc_t::advance_one_cycle() {
   case 0:
     if(proc == 0){
             // first Command
-            // store at cycle 1
+            // store 50 to A
     
             if(!command1[0]){
                 addr = A;
@@ -62,8 +62,8 @@ void proc_t::advance_one_cycle() {
             }
             
             // second Command
-            // store to same address
-            // should hit
+            // store 1 to B
+            
             else if(command1[0] && !command1[1]){
                 addr = B;
                 NOTE("p1 store B");
@@ -76,7 +76,7 @@ void proc_t::advance_one_cycle() {
             }
     }else if(proc == 1){
             
-
+            // p2 load B
             if(!command2[0]){
                 addr = B;
                 NOTE("p2 load B");
@@ -87,9 +87,10 @@ void proc_t::advance_one_cycle() {
                       NOTE("p2 first load finish");
                 }
             }
+            // keep load B until B is 1
             else if( command2[0] && !command2[1]){
-                NOTE("p2 load B, until B is not 0");
-                if(data == 0){
+                NOTE("p2 load B, until B is 1");
+                if(data != 1){
                      addr = B;
                      NOTE("p2 load B");
                      response = cache->load(addr, 0, &data, false);
@@ -98,6 +99,7 @@ void proc_t::advance_one_cycle() {
                    NOTE("p2 pass while loop");
                 }
             }
+            // load A again
             else if(command2[1] && !command2[2]){
                 addr = A;
                 NOTE("p2 load A ");
@@ -106,14 +108,15 @@ void proc_t::advance_one_cycle() {
                 if(response.retry_p == false){
                       command2[2] = true;
                       NOTE("p2  finish final load");
+                      if(data != 50){
+                          ERROR("fail this case");
+                      }else{
+                          NOTE("pass this case");
+                      }
                 }
             }
             else{
-                if(data != 50){
-                    ERROR("fail this case");
-                }else{
-                    NOTE("pass this case");
-                }
+                
             }
 
     }
