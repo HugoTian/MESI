@@ -45,6 +45,7 @@ void proc_t::advance_one_cycle() {
   int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
+    
 
             // first Command
             // store at cycle 1

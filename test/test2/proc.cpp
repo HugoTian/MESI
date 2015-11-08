@@ -89,7 +89,7 @@ void proc_t::advance_one_cycle() {
             }
             else if( command2[0] && !command2[1]){
                 NOTE("p2 load B, until B is not 0");
-                if(data != 0){
+                if(data == 0){
                      addr = B;
                      NOTE("p2 load B");
                      response = cache->load(addr, 0, &data, false);
