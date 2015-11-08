@@ -45,7 +45,6 @@ void proc_t::advance_one_cycle() {
   int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
-    NOTE("2 processor store and load on same address");
 
             // first Command
             // store at cycle 1

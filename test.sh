@@ -1,13 +1,21 @@
 echo "running test cases"
 
-for folder in test/*/ ; do
+cd test
+for folder in * ; do
     echo "running test case $folder"
     echo "copy test cases in to sim"
-    cp test/folder/.  sim/  -R 
-    cd sim
+    rm ../sim/proc.cpp
+    cp $folder/proc.cpp  ../sim/
+    cd ../sim
     echo "complile"
     make sim
-    ./sim 32 100 0 1
+    ./sim 32 100 0 0 | grep -q "fail"
+    if [ $? -eq 0 ]  ; then
+			echo "Fail for $folder"
+	else		
+			echo "Pass the $folder"
+	fi
     echo "finish running this case"
-    cd ..
+    echo "====================================================================="
+    cd ../test
 done

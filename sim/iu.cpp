@@ -112,15 +112,33 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
            else if(pc.permit_tag == MODIFIED){
                //there is a read miss and I am the home site
                if ( gen_node(pc.addr) == node ){
-                    NOTE("I am here");
-                    turn_up_directory(lcl, node);
-                    turn_up_dirtybit(lcl);
-                    copy_cache_line(pc.data, mem[lcl]);
-                    cache->reply(pc);
-                    return false;
-               }
-               // if thr directory is clean
-               if( !get_dirtybit(lcl)){
+                    // if the directory is clean
+                    if( !get_dirtybit(lcl)){
+                        turn_up_directory(lcl, node);
+                        turn_up_dirtybit(lcl);
+                        copy_cache_line(pc.data, mem[lcl]);
+                        cache->reply(pc);
+                        return false;
+                    }else{
+                        //read shared owner
+                        int owner;
+                        for(int i = 0 ; i < 32 ; i++){
+                          if(get_directory(lcl,i)){
+                             owner = i;
+                             break;
+                          }
+                        }
+                        ++global_accesses;
+                        net_cmd_t net_cmd;
+                        pc.permit_tag = SHARED;
+                        net_cmd.src = node;
+                        net_cmd.dest = owner;
+                        net_cmd.proc_cmd = pc;
+                        return(net->to_net(node, REQUEST, net_cmd));
+                    }
+               }else {
+                 // if thr directory is clean
+                if( !get_dirtybit(lcl)){
                     // send out invalidation
                     int inv  = -1;
                     // find invalidation
@@ -146,7 +164,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
                     copy_cache_line(pc.data, mem[lcl]);
                     cache->reply(pc);
                     return false;
-               }
+                }
                 // the directory is dirty
                 else{
                     //read shared owner
@@ -165,6 +183,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
                     net_cmd.proc_cmd = pc;
                     return(net->to_net(node, REQUEST, net_cmd));
                 }
+              }
 
            }
     }

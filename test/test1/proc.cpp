@@ -88,13 +88,13 @@ void proc_t::advance_one_cycle() {
 
                 if(response.retry_p){    
                   ERROR("should hit on this load");
-                  ERROR("failed this test case");
+                  ERROR("fail this test case");
                   return;
                               
                 }
                 else if(data != 50){
                   ERROR("load wrong data");
-                  ERROR("failed this test case");
+                  ERROR("fail this test case");
                   return;
                 }else{
                   // see whether pass this test case

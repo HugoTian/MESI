@@ -45,13 +45,13 @@ void proc_t::advance_one_cycle() {
   int B = 200 % test_args.addr_range;
   switch (args.test) {
   case 0:
-    NOTE("2 processor store and load on same address");
+    
 
             // first Command
             // store at cycle 1
     
             if(!command1[0]){
-                addr = random() % 32 + 32 * proc;
+                addr = random() % 32 + 16 * proc;
                 NOTE("proc store A");
                 response = cache->store(addr, 0, 50, false);
           
@@ -65,7 +65,7 @@ void proc_t::advance_one_cycle() {
             // load to same address
             // should hit
             else if(command1[0] && !command1[1]){
-                addr = random() % 32 + 32 * proc;
+                
                 NOTE("proc load A");
                 response = cache->load(addr, 0, &data, false);
                  if(response.retry_p == false){
