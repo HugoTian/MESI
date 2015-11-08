@@ -19,10 +19,16 @@ iu_t::iu_t(int __node) {
     for (int j = 0; j < CACHE_LINE_SIZE; ++j)
       mem[i][j] = 0;
 
-  for(int i = 0 ; i < 768 ; i ++){
-        others[i] = 0 ;
-        directory[i] = 0;
+  for (int i = 0; i < MEM_SIZE; ++i) {
+    dir[i].dirty_p = false;
+    dir[i].nodes = 0;
   }
+
+  net_cmd_t empty;
+  for (int i = 0; i < 32; i++)
+    reads_to_answer[i] = empty;
+
+  msgs_to_send.init(32);
 }
 
 void iu_t::bind(cache_t *c, network_t *n) {
@@ -36,13 +42,54 @@ void iu_t::advance_one_cycle() {
   if (net->from_net_p(node, REPLY)) {
     process_net_reply(net->from_net(node, REPLY));
 
-  } else if (net->from_net_p(node, REQUEST)) {
-    process_net_request(net->from_net(node, REQUEST));
+  // clear messages first
+  } else if (!msgs_to_send.empty()) {
+    send_message();
 
+  // clear proc_cmd if it is a write, 
+  // since this possibly blocks requests snooping to cache
+  } else if (proc_cmd_p && !proc_cmd_processed_p && proc_cmd.busop == WRITE) {
+    process_proc_request(proc_cmd);
+
+  // retry existing net request
+  } else if (net_request_retry_p) {
+    net_request_retry_p = process_net_request(net_request);
+
+  // new net request
+  } else if (net->from_net_p(node, REQUEST)) {
+    net_request = net->from_net(node, REQUEST);
+    net_request_retry_p = process_net_request(net_request);
+
+  // new proc request
   } else if (proc_cmd_p && !proc_cmd_processed_p) {
+    if (proc_cmd.busop == INVALIDATE)
+      ERROR("proc can never issue INVALIDATE");
     proc_cmd_processed_p = true;
     process_proc_request(proc_cmd);
   }
+}
+
+bool iu_t::find_reads_to_answer(int *n, proc_cmd_t wb) {
+  bool found = false;
+
+  if (proc_cmd.busop == READ && proc_cmd.addr == wb.addr) {
+    *n = node;
+    found = true;
+  }
+
+  for (int i = 0; i < 32; ++i) {
+    net_cmd_t net_cmd = reads_to_answer[i];
+    proc_cmd_t pc = net_cmd.proc_cmd;
+    if (net_cmd.valid_p && wb.addr == pc.addr) {
+      if (found)
+        ERROR("two reads_to_answer to same address");
+
+      *n = i;
+      found = true;
+    }
+  }
+
+  return found;
 }
 
 // processor side
@@ -66,135 +113,149 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
   int lcl = gen_local_cache_line(pc.addr);
 
   NOTE_ARGS(("%d: addr = %d, dest = %d", node, pc.addr, dest));
-  
-  //  if I am the home site
-  if (dest == node) { // local
 
+  if (dest == node) { // local
     ++local_accesses;
-    // clear proc_cmd
-    proc_cmd_p = false;  
     
     switch(pc.busop) {
-    case READ:{
-          //read shared
-           if(pc.permit_tag == SHARED){
-                // if the directory is clean
-                if(!get_dirtybit(lcl)){
-                    // add directory
-                    
-                    turn_up_directory(lcl,node);
-                    // server the data
-                    copy_cache_line(pc.data, mem[lcl]);
-                    
-                    cache->reply(pc);
-                    return false;
-                }
-                // the directory is dirty
-                else{
-                    //read shared owner
-                    int owner;
-                    for(int i = 0 ; i < 32 ; i++){
-                        if(get_directory(lcl,i)){
-                            owner = i;
-                            break;
-                        }
-                    }
-                    ++global_accesses;
-                    net_cmd_t net_cmd;
+    case READ:
+      // read for a load
+      if (pc.permit_tag == SHARED) {
+        // no one owns the line
+        if (!dir[lcl].dirty_p) {
+          proc_cmd_p = false; // clear proc_cmd
 
-                    net_cmd.src = node;
-                    net_cmd.dest = owner;
-                    net_cmd.proc_cmd = pc;
-                    return(net->to_net(node, REQUEST, net_cmd));
-                }
-           }
-           // read modified
-           else if(pc.permit_tag == MODIFIED){
-               //there is a read miss and I am the home site
-               if ( gen_node(pc.addr) == node ){
-                    // if the directory is clean
-                    if( !get_dirtybit(lcl)){
-                        turn_up_directory(lcl, node);
-                        turn_up_dirtybit(lcl);
-                        copy_cache_line(pc.data, mem[lcl]);
-                        cache->reply(pc);
-                        return false;
-                    }else{
-                        //read shared owner
-                        int owner;
-                        for(int i = 0 ; i < 32 ; i++){
-                          if(get_directory(lcl,i)){
-                             owner = i;
-                             break;
-                          }
-                        }
-                        ++global_accesses;
-                        net_cmd_t net_cmd;
-                        pc.permit_tag = SHARED;
-                        net_cmd.src = node;
-                        net_cmd.dest = owner;
-                        net_cmd.proc_cmd = pc;
-                        return(net->to_net(node, REQUEST, net_cmd));
-                    }
-               }else {
-                 // if thr directory is clean
-                if( !get_dirtybit(lcl)){
-                    // send out invalidation
-                    int inv  = -1;
-                    // find invalidation
-                    for(int i = 0 ; i < 32 ; i++){
-                        if(get_directory(lcl,i)){
-                            turn_down_directory(lcl,i);
-                            inv = i;
-                            pc.busop = INVALIDATE;
-                            ++global_accesses;
-                            net_cmd_t net_cmd;
+          dir[lcl].nodes |= (1 << node);
 
-                            net_cmd.src = node;
-                            net_cmd.dest = inv;
-                            net_cmd.proc_cmd = pc;
-                            return(net->to_net(node, REQUEST, net_cmd));
-                        }
-                    }
-                    // if all invalidation send out
-                    //add directory 
-                    //set directory cache line to dirty
-                    turn_up_directory(lcl, node);
-                    turn_up_dirtybit(lcl);
-                    copy_cache_line(pc.data, mem[lcl]);
-                    cache->reply(pc);
-                    return false;
-                }
-                // the directory is dirty
-                else{
-                    //read shared owner
-                    int owner;
-                    for(int i = 0 ; i < 32 ; i++){
-                        if(get_directory(lcl,i)){
-                            owner = i;
-                            break;
-                        }
-                    }
-                    ++global_accesses;
-                    pc.permit_tag = SHARED;
-                    net_cmd_t net_cmd;
-                    net_cmd.src = node;
-                    net_cmd.dest = owner;
-                    net_cmd.proc_cmd = pc;
-                    return(net->to_net(node, REQUEST, net_cmd));
-                }
-              }
+          copy_cache_line(pc.data, mem[lcl]);
+          cache->reply(pc);
 
-           }
-    }
-      
+        // demote the owner
+        } else {
+          bool owner_p = false;
+          unsigned int nodes = dir[lcl].nodes;
+
+          for (int i = 0; i < 32; ++i) {
+            if ((nodes >> i) & 0x1) {
+              if (owner_p)
+                ERROR("multiple modifier found");
+
+              owner_p = true;
+              net_cmd_t net_cmd;
+
+              net_cmd.src = node;
+              net_cmd.dest = i;
+              net_cmd.proc_cmd = (proc_cmd_t){READ, pc.addr, node, SHARED};
+              msgs_to_send.enqueue(net_cmd);
+            }
+          }
+        }
+
+      // read for a store
+      } else if (pc.permit_tag == MODIFIED) {
+        unsigned int nodes = dir[lcl].nodes;
+
+        // the line is shared to at most only me
+        if (nodes == 0 || nodes == (1 << node)) {
+          proc_cmd_p = false; // clear proc_cmd
+
+          dir[lcl].nodes |= (1 << node);
+          dir[lcl].dirty_p = true;
+
+          copy_cache_line(pc.data, mem[lcl]);
+          cache->reply(pc);
+        
+        // invalidate others
+        } else {
+          for (int i = 0; i < 32; ++i) {
+            if ((nodes >> i) & 0x1) {
+              net_cmd_t net_cmd;
+
+              net_cmd.src = node;
+              net_cmd.dest = i;
+              net_cmd.proc_cmd = (proc_cmd_t){INVALIDATE, pc.addr, node};
+              msgs_to_send.enqueue(net_cmd);
+            }
+          }
+        }
+      }
+      return(false);
       
     case WRITE:
-      copy_cache_line(mem[lcl], pc.data);
-      return(false);
+      proc_cmd_p = false;
+      proc_cmd_processed_p = true;
+      int reply_dst;
+
+      if (pc.permit_tag == MODIFIED) {
+        // write back due to replacement
+        if (!find_reads_to_answer(&reply_dst, pc)) {
+          dir[lcl].dirty_p = false;
+          dir[lcl].nodes &= ~(1 << node);
+
+          copy_cache_line(mem[lcl], pc.data);
+          return false;
+        }
+
+        // write back due to demotion
+        // prepare the reply first, 
+        // and do maintainence after reply sent for sure
+
+        net_cmd_t reply = reads_to_answer[reply_dst];
+        reply.src = node;
+        reply.dest = reply_dst;
+        copy_cache_line(reply.proc_cmd.data, pc.data);
+
+        if (net->to_net(node, REPLY, reply)) {
+          dir[lcl].dirty_p = false;
+          dir[lcl].nodes &= ~(1 << node);
+
+          copy_cache_line(mem[lcl], pc.data);
+
+          reads_to_answer[reply_dst].valid_p = false;
+          return false;
+        } else {
+          proc_cmd_p = true;
+          proc_cmd_processed_p = false;
+          return true;
+        }
+
+      } else if (pc.permit_tag == SHARED) {
+        // write back due to replacement
+        if (!find_reads_to_answer(&reply_dst, pc)) {
+          dir[lcl].nodes &= ~(1 << node);
+          return false;
+        } 
+
+        unsigned int nodes = dir[lcl].nodes;
+
+        // first few acks for invalidation
+        if (nodes != (1 << node)) {
+          dir[lcl].nodes &= ~(1 << node);
+          return false;
+
+        // last ack for invalidation
+        } else {
+          net_cmd_t reply = reads_to_answer[reply_dst];
+          reply.src = node;
+          reply.dest = reply_dst;
+          copy_cache_line(reply.proc_cmd.data, mem[lcl]);
+     
+          if (net->to_net(node, REPLY, reply)) {
+            dir[lcl].nodes &= ~(1 << node);
+
+            reads_to_answer[reply_dst].valid_p = false;
+            return false;
+          } else {
+            proc_cmd_p = true;
+            proc_cmd_processed_p = false;
+            return true;
+          }
+        }
+      }
       
     case INVALIDATE:
       // ***** FYTD *****
+      ERROR("proc can never issue a INVALIDATE");
       return(false);  // need to return something for now
       break;
     }
@@ -207,7 +268,8 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
     net_cmd.dest = dest;
     net_cmd.proc_cmd = pc;
 
-    return(net->to_net(node, REQUEST, net_cmd));
+    msgs_to_send.enqueue(net_cmd);
+    return(false);
   }
 }
 
@@ -222,137 +284,179 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
 
   // ***** FYTD *****
 
-
   switch(pc.busop) {
-  case READ: // assume local
-        { 
-           if ( gen_node(pc.addr) == node ){
+  case READ:
+    // not home site
+    if (gen_node(pc.addr) != node) {
+      // demoted to SHARED
+      response_t r = cache->snoop(net_cmd);
+      return r.retry_p;
 
-              if (pc.permit_tag == SHARED) {  // a load miss from Requestor
-                    
-                    if (!get_dirtybit(lcl)){
-                        // turn up directory
-                        turn_up_directory(lcl, src);
-                        // answer this read
-                        net_cmd.dest = src;
-                        net_cmd.src = dest;
-                        copy_cache_line(pc.data, mem[lcl]);
-                        net_cmd.proc_cmd = pc;
-                        return(net->to_net(node, REPLY, net_cmd));
-                    } 
-                    else{   // the directory cache line is dirty
-                        // read shared owner
-                        int owner;
-                        for(int i = 0 ; i < 32 ; i++){
-                            if(get_directory(lcl,i)){
-                              owner = i;
-                              break;
-                            }
-                        }
-                        ++global_accesses;
-                        net_cmd_t net_cmd;
+    // home site
+    } else {
+      if (pc.permit_tag == SHARED) {
+        // the line is shared only
+        if (!dir[lcl].dirty_p) {
+          net_cmd.dest = src;
+          net_cmd.src = dest;
+          copy_cache_line(pc.data, mem[lcl]);
+          net_cmd.proc_cmd = pc;
 
-                        net_cmd.src = node;
-                        net_cmd.dest = owner;
-                        net_cmd.proc_cmd = pc;
-                        return(net->to_net(node, REQUEST, net_cmd));
-                    }
-              } 
+          // retry if the reply cannot be received
+          if (net->to_net(node, REPLY, net_cmd)) {
+            dir[lcl].nodes |= (1 << src);
+            return false;
+          } else
+            return true;
 
-              else if (pc.permit_tag == MODIFIED){ // a store miss from Requestor
-                     if (!get_dirtybit(lcl)){
-                          // send out invalidation
-                          int inv  = -1;
-                          // find invalidation
-                          for(int i = 0 ; i < 32 ; i++){
-                              if(get_directory(lcl,i)){
-                                 turn_down_directory(lcl,i);
-                                 inv = i;
-                                 pc.busop = INVALIDATE;
-                                 ++global_accesses;
-                                 net_cmd_t net_cmd;
+        // demote the owner
+        } else {
+          unsigned int nodes = dir[lcl].nodes;
 
-                                 net_cmd.src = node;
-                                 net_cmd.dest = inv;
-                                 net_cmd.proc_cmd = pc;
-                                 return(net->to_net(node, REQUEST, net_cmd));
-                               }
-                          }
-                          // if all invalidation send out
-                          //add directory 
-                          //set directory cache line to dirty
-                          turn_up_directory(lcl, src);
-                          turn_up_dirtybit(lcl);
+          // home site is the owner
+          if (nodes == (1 << node)) {
+            response_t r = cache->snoop(net_cmd);
+            return r.retry_p;
 
-                          //reply to origin requestor
-                          net_cmd.dest = src;
-                          net_cmd.src = dest;
-                          copy_cache_line(pc.data, mem[lcl]);
-                          net_cmd.proc_cmd = pc;
-                          return(net->to_net(node, REPLY, net_cmd));
-                    
-                    } else{  // the directory cache line is dirty
-                        // read shared owner
-                        int owner;
-                        for(int i = 0 ; i < 32 ; i++){
-                            if(get_directory(lcl,i)){
-                              owner = i;
-                              break;
-                            }
-                        }
-                        ++global_accesses;
-                        pc.permit_tag = SHARED;
-                        net_cmd_t net_cmd;
-                        net_cmd.src = node;
-                        net_cmd.dest = owner;
-                        net_cmd.proc_cmd = pc;
-                        return(net->to_net(node, REQUEST, net_cmd));
-                    }
-              }else{
-                    // nothing happens
+          // owner is somewhere else
+          } else {
+            bool owner_p = false;
+
+            net_cmd.valid_p = true;
+            reads_to_answer[src] = net_cmd;
+
+            for (int i = 0; i < 32; ++i) {
+              if ((nodes >> i) & 0x1) {
+                if (owner_p)
+                  ERROR("multiple modifier found");
+                if (i == node)
+                  ERROR("inconsistent directory");
+
+                owner_p = true;
+
+                net_cmd.src = node;
+                net_cmd.dest = i;
+                net_cmd.proc_cmd = (proc_cmd_t){READ, pc.addr, node, SHARED};
+                msgs_to_send.enqueue(net_cmd);
               }
-
-
-            }  else{   // I am not the homesite,  instead, I am the owner
-                  
-                  if(pc.permit_tag == SHARED){
-                      //Modified to shared
-                      cache-> reply(pc);
-                      //request : write back Home Site
-                      ++global_accesses;
-                      copy_cache_line(pc.data, mem[lcl]);
-                      pc.busop = WRITE;
-                      net_cmd_t net_cmd;
-                      net_cmd.src = node;
-                      net_cmd.dest = src;
-                      net_cmd.proc_cmd = pc;
-                      return(net->to_net(node, REQUEST, net_cmd));
-                    }  
             }
-     
-
-
-        }
-      
-  case WRITE:
-          {
-                  if (get_dirtybit(lcl)) { // I am getting write request from owner
-                        copy_cache_line(mem[lcl], pc.data);
-                        turn_down_dirtybit(lcl);
-                        turn_up_directory(lcl,src);
-                        return false;
-                  }
-
+            return false;
           }
+        }
+      } else if (pc.permit_tag == MODIFIED) {
+        unsigned int nodes = dir[lcl].nodes;
+
+        // the line is shared to at most only src
+        if (nodes == 0 || nodes == (1 << src)) {
+          net_cmd.dest = src;
+          net_cmd.src = dest;
+          copy_cache_line(pc.data, mem[lcl]);
+          net_cmd.proc_cmd = pc;
+
+          if (net->to_net(node, REPLY, net_cmd)) {
+            dir[lcl].nodes |= (1 << src);
+            dir[lcl].dirty_p = true;
+            return false;
+          } else
+            return true;
+
+        // invalidate others
+        } else {
+          net_cmd.valid_p = true;
+          reads_to_answer[src] = net_cmd;
+
+          for (int i = 0; i < 32; ++i) {
+            if ((nodes >> i) & 0x1) {
+              net_cmd_t inv;
+
+              inv.src = node;
+              inv.dest = i;
+              inv.proc_cmd = (proc_cmd_t){INVALIDATE, pc.addr, node};
+              msgs_to_send.enqueue(inv);
+            }
+          }
+          return(false);
+        }
+      }
+    }
+
+  case WRITE:
+    // sanity check
+    if (gen_node(pc.addr) != node) 
+      ERROR("sent to wrong home site!");
+
+    int reply_dst;
+
+    if (pc.permit_tag == MODIFIED) {
+      // write back due to replacement
+      if (!find_reads_to_answer(&reply_dst, pc)) {
+        dir[lcl].dirty_p = false;
+        dir[lcl].nodes &= ~(1 << src);
+
+        copy_cache_line(mem[lcl], pc.data);
+        return false;
+      }
+
+      // write back due to demotion
+      // prepare the reply first, 
+      // and do maintainence after reply sent for sure
+
+      net_cmd_t reply = reads_to_answer[reply_dst];
+      reply.src = node;
+      reply.dest = reply_dst;
+      copy_cache_line(reply.proc_cmd.data, pc.data);
+
+      if (net->to_net(node, REPLY, reply)) {
+        dir[lcl].dirty_p = false;
+        dir[lcl].nodes &= ~(1 << src);
+
+        copy_cache_line(mem[lcl], pc.data);
+
+        reads_to_answer[reply_dst].valid_p = false;
+        return false;
+      } else
+        return true;
+
+    } else if (pc.permit_tag == SHARED) {
+      // write back due to replacement
+      if (!find_reads_to_answer(&reply_dst, pc)) {
+        dir[lcl].nodes &= ~(1 << src);
+        return false;
+      } 
+
+      unsigned int nodes = dir[lcl].nodes;
+
+      // first few acks for invalidation
+      if (nodes != (1 << src)) {
+        dir[lcl].nodes &= ~(1 << src);
+        return false;
+
+      // last ack for invalidation
+      } else {
+        net_cmd_t reply = reads_to_answer[reply_dst];
+        reply.src = node;
+        reply.dest = reply_dst;
+        copy_cache_line(reply.proc_cmd.data, mem[lcl]);
+     
+        if (net->to_net(node, REPLY, reply)) {
+          dir[lcl].nodes &= ~(1 << src);
+
+          reads_to_answer[reply_dst].valid_p = false;
+          return false;
+        } else
+          return true;
+      }
+    }
       
   case INVALIDATE:
     // ***** FYTD *****
-          { 
-                pc.permit_tag = INVALID;
-                cache->reply(pc);
-                return(false);  // need to return something for now
-          }
-          
+    // sanity check
+    if (gen_node(pc.addr) != node) 
+      ERROR("sent to wrong home site!");
+
+    // demote to INVALID
+    response_t r = cache->snoop(net_cmd);
+    return(r.retry_p);
   }
 }
 
@@ -372,6 +476,14 @@ bool iu_t::process_net_reply(net_cmd_t net_cmd) {
   case INVALIDATE:
     ERROR("should not have gotten a reply back from a write or an invalidate, since we are incoherent");
     return(false);  // need to return something for now
+  }
+}
+
+void iu_t::send_message() {
+  if (msgs_to_send.empty()) return;
+
+  if (net->to_net(node, REQUEST, msgs_to_send.front())) {
+    msgs_to_send.dequeue();
   }
 }
 

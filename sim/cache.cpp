@@ -11,7 +11,7 @@
 #include "types.h"
 #include "cache.h"
 #include "iu.h"
-
+#include "helpers.h"
 
 
 cache_t::cache_t(int __node, int __lg_assoc, int __lg_num_sets, int __lg_cache_line_size) {
@@ -114,6 +114,10 @@ void cache_t::modify_permit_tag(cache_access_response_t car, permit_tag_t permit
   tags[car.set][car.way].permit_tag = permit;
 }
 
+void cache_t::modify_address_permit_tags(cache_access_response_t car) {
+  // nop
+}
+
 void cache_t::cache_fill(cache_access_response_t car, data_t data) {
   tags[car.set][car.way].address_tag = car.address_tag;
   tags[car.set][car.way].permit_tag = car.permit_tag;
@@ -145,6 +149,17 @@ cache_access_response_t cache_t::lru_replacement(address_t addr) {
 
   // already in the cache?
   if (cache_access(addr, INVALID, &car)) {
+    // ack in case of requests on the fly
+    if (car.permit_tag >= SHARED) {
+      proc_cmd_t wb = (proc_cmd_t){WRITE, addr, node, car.permit_tag};
+      copy_cache_line(wb.data, tags[car.set][car.way].data);
+      iu->from_proc(wb);
+    }
+
+    // real write back
+    if (car.permit_tag == MODIFIED)
+      NOTE_ARGS(("%d: write back when replaceing addr %d", node, addr));
+
     return(car);
   }
 
@@ -213,28 +228,26 @@ response_t cache_t::load(address_t addr, bus_tag_t tag, int *data, bool retried_
     r.retry_p = false;
 
     *data = read_data(addr, car);
-
-    NOTE_ARGS(("%d: hit: addr %d, tag %d", node, addr, tag));
+    NOTE_ARGS(("%d: load hit: addr %d, tag %d", node, addr, tag));
 
     touch_replacement(car);
 
   } else {  // miss, service request
     if (!retried_p) {
       ++misses;
-      proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, SHARED};
-
-      NOTE_ARGS(("%d: miss: addr %d, tag %d", node, addr, tag));
-
-      // issue a read to next level of memory hierarchy.  In this case,
-      // it's the IU
-      
-      bool iu_retry_p = iu->from_proc(proc_cmd);
-
-      // create a response.  We know that it will take at least one
-      // cycle to get a response and we are modeling a blocking cache
-      // for now (if there is an outstanding miss, retry all memory
-      // operations until that miss is statisfied.)
+      NOTE_ARGS(("%d: load miss: addr %d, tag %d", node, addr, tag));
     }
+
+    // issue a read to next level of memory hierarchy.  In this case,
+    // it's the IU
+      
+    proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, SHARED};
+    bool iu_retry_p = iu->from_proc(proc_cmd);
+
+    // create a response.  We know that it will take at least one
+    // cycle to get a response and we are modeling a blocking cache
+    // for now (if there is an outstanding miss, retry all memory
+    // operations until that miss is statisfied.)
 
     r.hit_p = false;
     r.retry_p = true; // blocking cache for now
@@ -253,11 +266,12 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
   switch (car.permit_tag) {
   case INVALID: {
     if (!retried_p) {
-      proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
-      iu->from_proc(proc_cmd);
-
       ++misses;
+      NOTE_ARGS(("%d: store miss: addr %d, tag %d", node, addr, tag));
     }
+
+    proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
+    iu->from_proc(proc_cmd);
 
     r.hit_p = false;
     r.retry_p = true;
@@ -266,11 +280,12 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
 
   case SHARED: {
     if (!retried_p) {
-      proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
-      iu->from_proc(proc_cmd);
-
       ++partial_hits;
+      NOTE_ARGS(("%d: store partial hit: addr %d, tag %d", node, addr, tag));
     }
+
+    proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
+    iu->from_proc(proc_cmd);
 
     r.hit_p = false;
     r.retry_p = true;
@@ -278,7 +293,10 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
   }
 
   case EXCLUSIVE:
-    if (!retried_p) ++full_hits;
+    if (!retried_p) {
+      ++full_hits;
+      NOTE_ARGS(("%d: store hit: addr %d, tag %d", node, addr, tag));
+    }
 
     modify_permit_tag(car, MODIFIED);
     touch_replacement(car);
@@ -289,7 +307,10 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
     break;
 
   case MODIFIED:
-    if (!retried_p) ++full_hits;
+    if (!retried_p) {
+      ++full_hits;
+      NOTE_ARGS(("%d: store hit: addr %d, tag %d", node, addr, tag));
+    }
 
     r.hit_p = true;
     r.retry_p = false;
@@ -313,5 +334,39 @@ void cache_t::reply(proc_cmd_t proc_cmd) {
   car.permit_tag = proc_cmd.permit_tag;
   cache_fill(car, proc_cmd.data);
   
+}
+
+response_t cache_t::snoop(net_cmd_t net_cmd) {
+  response_t r;
+  cache_access_response_t car;
+  proc_cmd_t pc = net_cmd.proc_cmd;
+
+  if (pc.busop == WRITE)
+    ERROR("snoop: error: busop WRITE\n");
+
+  permit_tag_t before = (pc.busop == READ) ? EXCLUSIVE : SHARED;
+  permit_tag_t after = (pc.busop == READ) ? SHARED : INVALID;
+  const char *op_str = (pc.busop == READ) ? "READ" : "INVALIDATE";
+  
+  // demotable in cache?
+  r.hit_p = cache_access(pc.addr, before, &car);
+
+  if (r.hit_p) {
+    // ack in case of requests on the fly
+    proc_cmd_t wb = (proc_cmd_t){WRITE, pc.addr, node, car.permit_tag};
+    copy_cache_line(wb.data, tags[car.set][car.way].data);
+    r.retry_p = iu->from_proc(wb);
+
+    if (!r.retry_p) {
+      // real write back
+      if (car.permit_tag == MODIFIED)
+        NOTE_ARGS(("%d: write back addr %d when snooping for %s", node, pc.addr, op_str));
+
+      modify_permit_tag(car, after);
+    }
+  } else
+    r.retry_p = false;
+
+  return(r);
 }
 

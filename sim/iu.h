@@ -12,8 +12,11 @@
 #include "my_fifo.h"
 #include "cache.h"
 #include "network.h"
-#include <iostream>
 
+struct directory_t {
+  bool dirty_p;
+  unsigned int nodes;
+};
 
 class iu_t {
   int node;
@@ -23,10 +26,6 @@ class iu_t {
 
   data_t mem[MEM_SIZE];
 
-  int directory [768];
-  int others[768];
-
-
   cache_t *cache;
   network_t *net;
 
@@ -35,12 +34,24 @@ class iu_t {
 
   bool proc_cmd_processed_p;
 
+  bool net_request_retry_p;
+  net_cmd_t net_request;
+
+  directory_t dir[MEM_SIZE];
+
+  net_cmd_t reads_to_answer[32];
+
+  my_fifo_t <net_cmd_t> msgs_to_send;
+
   // processor side
   bool process_proc_request(proc_cmd_t proc_cmd);
 
   // network side
   bool process_net_request(net_cmd_t net_cmd);
   bool process_net_reply(net_cmd_t net_cmd);
+
+  void send_message();
+  bool find_reads_to_answer(int *n, proc_cmd_t wb);
 
  public:
   iu_t(int __node);
@@ -55,61 +66,6 @@ class iu_t {
   
   // network side
   bool from_net(net_cmd_t nc);
-
-  // get directoru
-  int get_directory(int cache_line, int proc){
-      return (directory[cache_line] >> proc ) & 1;
-  }
-  // turn up a directory
-  void turn_up_directory(int cache_line, int proc){
-        directory[cache_line] = directory[cache_line] | ( 1<< proc);
-  }
   
-  // turn down a directory
-  void turn_down_directory(int cache_line, int proc){
-        directory[cache_line] = directory[cache_line] & (~ ( 1 << proc));
-
-  }
-
-  // get busy bit
-  int get_busybit(int cache_line){
-        return others[cache_line] >> 1 & 1 ;
-  }
-
-  // turn on busy bit
-
-  void turn_up_busybit(int cache_line){
-       others[cache_line] |= (1<< 1);
-  }
-
-
-  // turn off busy bit
-
-  void turn_down_busybit(int cache_line){
-       others[cache_line] &=  ( ~(1<< 1) );
-  }
-
-
-
-  // get dirty bit
-  int get_dirtybit(int cache_line){
-        return others[cache_line]  & 1 ;
-  }
-
-
-
-  // turn on dirty bit
-
-
-  void turn_up_dirtybit(int cache_line){
-       others[cache_line] |=  1 ;
-  }
-
-  // turn down dirty bit
-  void turn_down_dirtybit(int cache_line){
-       others[cache_line] &= ( ~1 );
-  }
-
-
 };
 #endif
