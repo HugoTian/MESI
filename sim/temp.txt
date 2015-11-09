@@ -1,0 +1,99 @@
+NUM_PRIORITIES = 2
+NOTE: 0: advance_one_cycle: proc store A
+NOTE: 0: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 0: store: 1: store miss: addr 100, tag 0
+NOTE: 0: store: 1: store to addr 64 buffered
+NOTE: 0: advance_one_cycle: proc store A
+NOTE: 0: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 0: store: 2: store miss: addr 100, tag 0
+NOTE: 0: store: 2: store to addr 64 buffered
+NOTE: 0: advance_one_cycle: proc store A
+NOTE: 0: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 0: store: 3: store miss: addr 100, tag 0
+NOTE: 0: store: 3: store to addr 64 buffered
+NOTE: 0: advance_one_cycle: proc store A
+NOTE: 0: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 0: store: 0: store miss: addr 100, tag 0
+NOTE: 0: store: 0: store to addr 64 buffered
+NOTE: 1: process_proc_request: 1: addr = 100, dest = 0
+NOTE: 1: process_proc_request: 1: request buffered to send
+NOTE: 1: advance_one_cycle: 1: read getting processed
+NOTE: 1: advance_one_cycle: proc store A
+NOTE: 1: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 1: store: 1: store miss: addr 100, tag 0
+NOTE: 1: process_proc_request: 2: addr = 100, dest = 0
+NOTE: 1: process_proc_request: 2: request buffered to send
+NOTE: 1: advance_one_cycle: 2: read getting processed
+NOTE: 1: advance_one_cycle: proc store A
+NOTE: 1: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 1: store: 2: store miss: addr 100, tag 0
+NOTE: 1: process_proc_request: 3: addr = 100, dest = 0
+NOTE: 1: process_proc_request: 3: request buffered to send
+NOTE: 1: advance_one_cycle: 3: read getting processed
+NOTE: 1: advance_one_cycle: proc store A
+NOTE: 1: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 1: store: 3: store miss: addr 100, tag 0
+NOTE: 1: process_proc_request: 0: addr = 100, dest = 0
+NOTE: 1: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 1: reply: 0: replacing addr_tag 0 into set 6, assoc 0
+NOTE: 1: cache_fill: set tags[6][0].address_tag = 0
+NOTE: 1: cache_fill: set tags[6][0].permit_tag  = 3
+NOTE: 1: process_proc_request: 0: owned at most by me, load satisfied locally
+NOTE: 1: advance_one_cycle: 0: read getting processed
+NOTE: 1: advance_one_cycle: proc store A
+NOTE: 1: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 1: store: 0: store hit: addr 100, tag 0
+NOTE: 1: advance_one_cycle: proc first store finish
+NOTE: 2: to_net: sending from 1 to 0
+NOTE: 2: advance_one_cycle: 1: send a message
+NOTE: 2: advance_one_cycle: proc load A
+NOTE: 2: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 2: load: 1: load miss: addr 100, tag 0
+NOTE: 2: to_net: sending from 2 to 0
+NOTE: 2: advance_one_cycle: 2: send a message
+NOTE: 2: advance_one_cycle: proc load A
+NOTE: 2: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 2: load: 2: load miss: addr 100, tag 0
+NOTE: 2: to_net: sending from 3 to 0
+NOTE: 2: advance_one_cycle: 3: send a message
+NOTE: 2: advance_one_cycle: proc load A
+NOTE: 2: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 2: load: 3: load miss: addr 100, tag 0
+NOTE: 2: advance_one_cycle: proc load A
+NOTE: 2: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 2: load: 0: load hit: addr 100, tag 0
+NOTE: 2: advance_one_cycle: proc load finish
+NOTE: 2: advance_one_cycle: 0: get correct value
+NOTE: 2: advance_one_cycle: pass this case
+NOTE: 12: process_net_request: 0: home: invalidate 0
+NOTE: 12: advance_one_cycle: 0: new net request
+NOTE: 13: to_net: sending from 0 to 0
+NOTE: 13: advance_one_cycle: 0: send a message
+NOTE: 14: process_net_request: 0: home: invalidate 0
+NOTE: 14: advance_one_cycle: 0: new net request
+NOTE: 15: to_net: sending from 0 to 0
+NOTE: 15: advance_one_cycle: 0: send a message
+NOTE: 16: process_net_request: 0: home: invalidate 0
+NOTE: 16: advance_one_cycle: 0: new net request
+NOTE: 17: to_net: sending from 0 to 0
+NOTE: 17: advance_one_cycle: 0: send a message
+NOTE: 23: gen_set: addr = 64, set_shift 4, set_mask 7, set 6
+
+NOTE: 23: snoop: 0: write back addr 100 when snooping for INVALIDATE
+NOTE: 23: process_net_request: 0: snoop for addr 100 to INVALID
+NOTE: 23: advance_one_cycle: 0: new net request
+NOTE: 24: process_proc_request: 0: addr = 100, dest = 0
+ERROR: 24: find_reads_to_answer: two reads_to_answer to same address

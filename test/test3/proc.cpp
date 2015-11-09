@@ -123,9 +123,13 @@ void proc_t::advance_one_cycle() {
                         }else{
                             NOTE("pass this case");
                         }
+                     }else{
+
                      }
                 }else{
                     command3[1] = true;
+                    NOTE("pass this case");
+                    return;
                 }
             }
     }

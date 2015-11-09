@@ -65,6 +65,7 @@ void proc_t::advance_one_cycle() {
             // load to same address
             // should hit
             else{
+
             if(proc == 0){
                 if(command1[0] && !command1[1]){
                     addr = A;
@@ -77,31 +78,41 @@ void proc_t::advance_one_cycle() {
           
                 }else if(command1[1] && !command1[2]){
                     addr = B;
-                    NOTE("proc store A");
+                    NOTE("proc store B");
                     response = cache->store(addr, 0, 100, false);
                     if(response.retry_p == false){
                         command1[2] = true;
                         NOTE("proc store finish");
                     }
+                }else{
+                        NOTE("no action");
                 }
+
+
             }else{
+               
                 if(command1[0] && !command1[1]){
-                    addr = A;
-                    NOTE("proc load A");
+                    addr = B;
+                    NOTE("proc load B");
                     response = cache->load(addr, 0, &data, false);
-                    if(data == 50){
+                    if(data == 100){
                         command1[1] = true;
                         NOTE("proc finish while loop for load");
+                    }else{
+                        NOTE("in the while loop");
                     }
                 }else if(command1[1] && !command1[2]){
-                     addr = B;
-                     NOTE("proc load B");
+                     addr = A;
+                     NOTE("proc load A");
                      response = cache->load(addr, 0, &data, false);
                      if(response.retry_p == false){
                         command1[2] = true;
                         NOTE("proc store finish");
-                        if(data != 100){
+                        if(data != 50){
                           ERROR("fail test case");
+                        }else{
+                          NOTE_ARGS(("%d: get correct value", proc));
+                          NOTE("pass the test case");
                         }
                      }
                 }

@@ -76,6 +76,7 @@ void proc_t::advance_one_cycle() {
                     if(data != 50){
                         ERROR("fail this case");
                     }else{
+                        NOTE_ARGS(("%d: get correct value", proc));
                         NOTE("pass this case");
                     }
                 }

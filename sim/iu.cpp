@@ -41,24 +41,29 @@ void iu_t::advance_one_cycle() {
   // fixed priority: reply from network
   if (net->from_net_p(node, REPLY)) {
     process_net_reply(net->from_net(node, REPLY));
+    NOTE_ARGS(("%d: get net reply", node));
 
   // clear messages first
   } else if (!msgs_to_send.empty()) {
     send_message();
+    NOTE_ARGS(("%d: send a message", node));
 
   // clear proc_cmd if it is a write, 
   // since this possibly blocks requests snooping to cache
   } else if (proc_cmd_p && !proc_cmd_processed_p && proc_cmd.busop == WRITE) {
     process_proc_request(proc_cmd);
+    NOTE_ARGS(("%d: write getting processed", node));
 
   // retry existing net request
   } else if (net_request_retry_p) {
     net_request_retry_p = process_net_request(net_request);
+    NOTE_ARGS(("%d: retry net request", node));
 
   // new net request
   } else if (net->from_net_p(node, REQUEST)) {
     net_request = net->from_net(node, REQUEST);
     net_request_retry_p = process_net_request(net_request);
+    NOTE_ARGS(("%d: new net request", node));
 
   // new proc request
   } else if (proc_cmd_p && !proc_cmd_processed_p) {
@@ -66,6 +71,7 @@ void iu_t::advance_one_cycle() {
       ERROR("proc can never issue INVALIDATE");
     proc_cmd_processed_p = true;
     process_proc_request(proc_cmd);
+    NOTE_ARGS(("%d: read getting processed", node));
   }
 }
 
@@ -88,6 +94,9 @@ bool iu_t::find_reads_to_answer(int *n, proc_cmd_t wb) {
       found = true;
     }
   }
+
+  if (found)
+    NOTE_ARGS(("%d: to answer read from %d", node, *n));
 
   return found;
 }
@@ -130,6 +139,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
           copy_cache_line(pc.data, mem[lcl]);
           cache->reply(pc);
 
+          NOTE_ARGS(("%d: all shared, load satisfied locally", node));
         // demote the owner
         } else {
           bool owner_p = false;
@@ -147,6 +157,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
               net_cmd.dest = i;
               net_cmd.proc_cmd = (proc_cmd_t){READ, pc.addr, node, SHARED};
               msgs_to_send.enqueue(net_cmd);
+              NOTE_ARGS(("%d: owned by %d, read forwarding from there", node, i));
             }
           }
         }
@@ -164,6 +175,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
 
           copy_cache_line(pc.data, mem[lcl]);
           cache->reply(pc);
+          NOTE_ARGS(("%d: owned at most by me, load satisfied locally", node));
         
         // invalidate others
         } else {
@@ -175,6 +187,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
               net_cmd.dest = i;
               net_cmd.proc_cmd = (proc_cmd_t){INVALIDATE, pc.addr, node};
               msgs_to_send.enqueue(net_cmd);
+              NOTE_ARGS(("%d: owned by %d, rwitm forwarding from there", node, i));
             }
           }
         }
@@ -193,6 +206,8 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
           dir[lcl].nodes &= ~(1 << node);
 
           copy_cache_line(mem[lcl], pc.data);
+
+          NOTE_ARGS(("%d: lru write back addr %d to memory", node, pc.addr));
           return false;
         }
 
@@ -212,10 +227,12 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
           copy_cache_line(mem[lcl], pc.data);
 
           reads_to_answer[reply_dst].valid_p = false;
+          NOTE_ARGS(("%d: demotion write back addr %d to memory", node, pc.addr));
           return false;
         } else {
           proc_cmd_p = true;
           proc_cmd_processed_p = false;
+          NOTE_ARGS(("%d: retry demotion write back addr %d to memory", node, pc.addr));
           return true;
         }
 
@@ -223,6 +240,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
         // write back due to replacement
         if (!find_reads_to_answer(&reply_dst, pc)) {
           dir[lcl].nodes &= ~(1 << node);
+          NOTE_ARGS(("%d: lru ack addr %d to memory", node, pc.addr));
           return false;
         } 
 
@@ -231,6 +249,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
         // first few acks for invalidation
         if (nodes != (1 << node)) {
           dir[lcl].nodes &= ~(1 << node);
+          NOTE_ARGS(("%d: ack from self to addr %d", node, pc.addr));
           return false;
 
         // last ack for invalidation
@@ -244,10 +263,12 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
             dir[lcl].nodes &= ~(1 << node);
 
             reads_to_answer[reply_dst].valid_p = false;
+            NOTE_ARGS(("%d: last ack addr %d to memory", node, pc.addr));
             return false;
           } else {
             proc_cmd_p = true;
             proc_cmd_processed_p = false;
+            NOTE_ARGS(("%d: retry last ack addr %d to memory", node, pc.addr));
             return true;
           }
         }
@@ -269,6 +290,7 @@ bool iu_t::process_proc_request(proc_cmd_t pc) {
     net_cmd.proc_cmd = pc;
 
     msgs_to_send.enqueue(net_cmd);
+    NOTE_ARGS(("%d: request buffered to send", node));
     return(false);
   }
 }
@@ -290,6 +312,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
     if (gen_node(pc.addr) != node) {
       // demoted to SHARED
       response_t r = cache->snoop(net_cmd);
+      NOTE_ARGS(("%d: not home: snoop for addr = %d to SHARED", node, pc.addr));
       return r.retry_p;
 
     // home site
@@ -305,25 +328,29 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
           // retry if the reply cannot be received
           if (net->to_net(node, REPLY, net_cmd)) {
             dir[lcl].nodes |= (1 << src);
+            NOTE_ARGS(("%d: home: all shared, reply to %d for addr = %d", node, src, pc.addr));
             return false;
-          } else
+          } else {
+            NOTE_ARGS(("%d: home: all shared, retry request from %d for addr = %d", node, src, pc.addr));
             return true;
+          }
 
         // demote the owner
         } else {
+          net_cmd.valid_p = true;
+          reads_to_answer[src] = net_cmd;
+
           unsigned int nodes = dir[lcl].nodes;
 
           // home site is the owner
           if (nodes == (1 << node)) {
             response_t r = cache->snoop(net_cmd);
+            NOTE_ARGS(("%d: home: snoop for addr = %d to SHARED", node, pc.addr));
             return r.retry_p;
 
           // owner is somewhere else
           } else {
             bool owner_p = false;
-
-            net_cmd.valid_p = true;
-            reads_to_answer[src] = net_cmd;
 
             for (int i = 0; i < 32; ++i) {
               if ((nodes >> i) & 0x1) {
@@ -338,6 +365,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
                 net_cmd.dest = i;
                 net_cmd.proc_cmd = (proc_cmd_t){READ, pc.addr, node, SHARED};
                 msgs_to_send.enqueue(net_cmd);
+                NOTE_ARGS(("%d: home: load forwarding from owner %d", node, i));
               }
             }
             return false;
@@ -356,9 +384,12 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
           if (net->to_net(node, REPLY, net_cmd)) {
             dir[lcl].nodes |= (1 << src);
             dir[lcl].dirty_p = true;
+            NOTE_ARGS(("%d: home: owned at most by %d, reply to %d", node, src, src));
             return false;
-          } else
+          } else {
+            NOTE_ARGS(("%d: home: retry, owned at most by %d, reply to %d", node, src, src));
             return true;
+          }
 
         // invalidate others
         } else {
@@ -373,6 +404,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
               inv.dest = i;
               inv.proc_cmd = (proc_cmd_t){INVALIDATE, pc.addr, node};
               msgs_to_send.enqueue(inv);
+              NOTE_ARGS(("%d: home: invalidate %d", node, i));
             }
           }
           return(false);
@@ -394,6 +426,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
         dir[lcl].nodes &= ~(1 << src);
 
         copy_cache_line(mem[lcl], pc.data);
+        NOTE_ARGS(("%d: home: lru replacement for addr %d", node, pc.addr));
         return false;
       }
 
@@ -413,14 +446,18 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
         copy_cache_line(mem[lcl], pc.data);
 
         reads_to_answer[reply_dst].valid_p = false;
+        NOTE_ARGS(("%d: home: demotion write back addr %d to memory", node, pc.addr));
         return false;
-      } else
+      } else {
+        NOTE_ARGS(("%d: home: retry demotion write back addr %d to memory", node, pc.addr));
         return true;
+      }
 
     } else if (pc.permit_tag == SHARED) {
       // write back due to replacement
       if (!find_reads_to_answer(&reply_dst, pc)) {
         dir[lcl].nodes &= ~(1 << src);
+        NOTE_ARGS(("%d: home: lru ack for addr %d", node, pc.addr));
         return false;
       } 
 
@@ -429,6 +466,7 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
       // first few acks for invalidation
       if (nodes != (1 << src)) {
         dir[lcl].nodes &= ~(1 << src);
+        NOTE_ARGS(("%d: home: ack from %d for addr %d", node, src, pc.addr));
         return false;
 
       // last ack for invalidation
@@ -442,20 +480,21 @@ bool iu_t::process_net_request(net_cmd_t net_cmd) {
           dir[lcl].nodes &= ~(1 << src);
 
           reads_to_answer[reply_dst].valid_p = false;
+          NOTE_ARGS(("%d: home: last ack from %d for addr %d", node, src, pc.addr));
           return false;
-        } else
+        } else {
+          NOTE_ARGS(("%d: home: retry last ack from %d for addr %d", node, src, pc.addr));
           return true;
+        }
       }
     }
       
   case INVALIDATE:
     // ***** FYTD *****
-    // sanity check
-    if (gen_node(pc.addr) != node) 
-      ERROR("sent to wrong home site!");
 
     // demote to INVALID
     response_t r = cache->snoop(net_cmd);
+    NOTE_ARGS(("%d: snoop for addr %d to INVALID", node, pc.addr));
     return(r.retry_p);
   }
 }

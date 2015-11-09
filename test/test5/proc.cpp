@@ -119,6 +119,7 @@ void proc_t::advance_one_cycle() {
                        if(data != 50 + proc -1 ){
                           ERROR("fail  this test ");
                        } else{
+                          NOTE_ARGS(("%d: get correct value", proc));
                           NOTE("pass this case");
                        }
                 }

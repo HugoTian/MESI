@@ -100,8 +100,14 @@ void proc_t::advance_one_cycle() {
                             NOTE("load finish");
                               if(data != 50 ){
                                  ERROR("fail  this test ");
+                             }else{
+                                 NOTE("pass this case");
                              }
+                        }else{
+                            NOTE("pretry");
                         }
+
+                   }else{
 
                    }
 
@@ -110,7 +116,7 @@ void proc_t::advance_one_cycle() {
 
                 }else{
                    command2[1] = true;
-                   
+                   NOTE("pass this case");
                 }
             }
            

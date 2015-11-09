@@ -243,6 +243,9 @@ response_t cache_t::load(address_t addr, bus_tag_t tag, int *data, bool retried_
       
     proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, SHARED};
     bool iu_retry_p = iu->from_proc(proc_cmd);
+    if (!iu_retry_p) {
+      NOTE_ARGS(("%d: load to addr %x buffered", node, addr));
+    }
 
     // create a response.  We know that it will take at least one
     // cycle to get a response and we are modeling a blocking cache
@@ -271,7 +274,9 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
     }
 
     proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
-    iu->from_proc(proc_cmd);
+    if (!iu->from_proc(proc_cmd)) {
+      NOTE_ARGS(("%d: store to addr %x buffered", node, addr));
+    }
 
     r.hit_p = false;
     r.retry_p = true;
@@ -285,7 +290,9 @@ response_t cache_t::store(address_t addr, bus_tag_t tag, int data, bool retried_
     }
 
     proc_cmd_t proc_cmd = (proc_cmd_t){READ, addr, tag, MODIFIED};
-    iu->from_proc(proc_cmd);
+    if (!iu->from_proc(proc_cmd)) {
+      NOTE_ARGS(("%d: store to addr %x buffered", node, addr));
+    }
 
     r.hit_p = false;
     r.retry_p = true;
